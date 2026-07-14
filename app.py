@@ -1990,22 +1990,27 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
             st.info("ยังไม่มีข้อมูลใบแจ้งหนี้ในระบบ")
         else:
             # Create mapping from booking ID to booking number
+            # Create mapping from booking ID to booking number and B/L number
             bk_id_to_num = {}
+            bk_id_to_bl = {}
             if not df_bk_all_global.empty and 'Booking ID' in df_bk_all_global.columns:
                 for _, bk_r in df_bk_all_global.iterrows():
                     b_id = safe_str(bk_r.get('Booking ID'))
                     b_num = safe_str(bk_r.get('Booking Number'))
+                    b_bl = safe_str(bk_r.get('B/L Number'))
                     if b_id:
                         bk_id_to_num[b_id] = b_num
+                        bk_id_to_bl[b_id] = b_bl
             
-            # Format: Invoice ID | Booking: Booking ID | No: Booking Number | Customer Name
+            # Format: Invoice ID | BKG ID: Booking ID | Booking No: Booking Number | B/L: B/L Number | ลูกค้า: Customer Name
             inv_opts = []
             for idx, r in df_inv_all.iterrows():
                 inv_id_val = safe_str(r['Invoice ID'])
                 bk_id_val = safe_str(r.get('Booking ID'))
                 bk_num_val = bk_id_to_num.get(bk_id_val, '-') if bk_id_val else '-'
+                bl_num_val = bk_id_to_bl.get(bk_id_val, '-') if bk_id_val else '-'
                 cust_name_val = safe_str(r.get('Customer Name'))
-                inv_opts.append(f"{inv_id_val} | Booking: {bk_id_val if bk_id_val else '-'} | No: {bk_num_val} | {cust_name_val}")
+                inv_opts.append(f"{inv_id_val} | BKG ID: {bk_id_val if bk_id_val else '-'} | Booking No: {bk_num_val} | B/L: {bl_num_val} | ลูกค้า: {cust_name_val}")
                 
             sel_inv_opt = st.selectbox("เลือกใบแจ้งหนี้ที่ต้องการจัดการ:", inv_opts, key="sel_inv_opt_edit")
             sel_inv_id = sel_inv_opt.split(" | ")[0].strip()
@@ -2362,22 +2367,26 @@ elif page == "💰 รับชำระเงิน (Receipt)":
         if unpaid_invs.empty:
             st.info("ไม่มีใบแจ้งหนี้ค้างชำระสำหรับการออกใบเสร็จ")
         else:
-            # Create mapping from booking ID to booking number
+            # Create mapping from booking ID to booking number and B/L number
             bk_id_to_num = {}
+            bk_id_to_bl = {}
             if not df_bk_all_global.empty and 'Booking ID' in df_bk_all_global.columns:
                 for _, bk_r in df_bk_all_global.iterrows():
                     b_id = safe_str(bk_r.get('Booking ID'))
                     b_num = safe_str(bk_r.get('Booking Number'))
+                    b_bl = safe_str(bk_r.get('B/L Number'))
                     if b_id:
                         bk_id_to_num[b_id] = b_num
+                        bk_id_to_bl[b_id] = b_bl
             
             inv_opts_rec = []
             for idx, r in unpaid_invs.iterrows():
                 inv_id_val = safe_str(r['Invoice ID'])
                 bk_id_val = safe_str(r.get('Booking ID'))
                 bk_num_val = bk_id_to_num.get(bk_id_val, '-') if bk_id_val else '-'
+                bl_num_val = bk_id_to_bl.get(bk_id_val, '-') if bk_id_val else '-'
                 cust_name_val = safe_str(r.get('Customer Name'))
-                inv_opts_rec.append(f"{inv_id_val} | BKG: {bk_num_val} | ลูกค้า: {cust_name_val}")
+                inv_opts_rec.append(f"{inv_id_val} | BKG ID: {bk_id_val if bk_id_val else '-'} | Booking No: {bk_num_val} | B/L: {bl_num_val} | ลูกค้า: {cust_name_val}")
                 
             sel_inv_rec = st.selectbox("เลือกใบแจ้งหนี้เพื่อบันทึกจ่ายเงิน:", inv_opts_rec)
             sel_inv_id = sel_inv_rec.split(" | ")[0].strip()
