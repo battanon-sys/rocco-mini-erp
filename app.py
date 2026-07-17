@@ -1802,16 +1802,10 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
             
             st.info(f"👤 ลูกค้า: {cust_name} | 🚢 Booking No: {bk_data.get('Booking Number', '-')}")
             
-            col_date1, col_date2 = st.columns(2)
-            with col_date1:
-                inv_date = st.date_input("วันที่ออกใบแจ้งหนี้ (Invoice Date)", value=datetime.date.today(), format="DD/MM/YYYY")
-            with col_date2:
-                due_date = st.date_input("วันครบกำหนดชำระ (Due Date)", value=datetime.date.today() + datetime.timedelta(days=30), format="DD/MM/YYYY")
-            
             if 'prev_sel_bk_id_inv' not in st.session_state or st.session_state['prev_sel_bk_id_inv'] != sel_bk_id:
                 st.session_state['prev_sel_bk_id_inv'] = sel_bk_id
                 for _k in list(st.session_state.keys()):
-                    if _k.startswith("inv_item_") and "_edit_" not in _k:
+                    if (_k.startswith("inv_item_") or _k.startswith("inv_date_create_") or _k.startswith("due_date_create_")) and "_edit_" not in _k:
                         del st.session_state[_k]
                 df_costs = get_data_from_sheet('Job_Costing')
                 job_sales = df_costs[df_costs['Booking ID'] == sel_bk_id] if not df_costs.empty and 'Booking ID' in df_costs.columns else pd.DataFrame()
@@ -1842,6 +1836,18 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                         })
                 items_list.sort(key=get_item_sort_key)
                 st.session_state['invoice_items'] = items_list
+
+            col_date1, col_date2 = st.columns(2)
+            with col_date1:
+                inv_date_cal = st.date_input("📅 วันที่ออกใบแจ้งหนี้ (เลือกจากปฏิทิน)", value=st.session_state.get(f'inv_date_create_cal_{sel_bk_id}', datetime.date.today()), format="DD/MM/YYYY", key=f'inv_date_create_cal_{sel_bk_id}')
+                inv_date_str = st.text_input("⌨️ หรือพิมพ์วันที่เอง (วว/ดด/ปปปป):", value="", placeholder=f"ตัวอย่าง: {datetime.date.today().strftime('%d/%m/%Y')}", key=f'inv_date_create_str_{sel_bk_id}')
+                inv_date = p_date(inv_date_str) if inv_date_str.strip() else inv_date_cal
+                if not inv_date: inv_date = datetime.date.today()
+            with col_date2:
+                due_date_cal = st.date_input("📅 วันครบกำหนดชำระ (เลือกจากปฏิทิน)", value=st.session_state.get(f'due_date_create_cal_{sel_bk_id}', datetime.date.today() + datetime.timedelta(days=30)), format="DD/MM/YYYY", key=f'due_date_create_cal_{sel_bk_id}')
+                due_date_str = st.text_input("⌨️ หรือพิมพ์วันครบกำหนดเอง (วว/ดด/ปปปป):", value="", placeholder=f"ตัวอย่าง: {(datetime.date.today() + datetime.timedelta(days=30)).strftime('%d/%m/%Y')}", key=f'due_date_create_str_{sel_bk_id}')
+                due_date = p_date(due_date_str) if due_date_str.strip() else due_date_cal
+                if not due_date: due_date = datetime.date.today() + datetime.timedelta(days=30)
 
             st.markdown("---")
             st.markdown("### 2. รายการเรียกเก็บเงิน")
@@ -2033,7 +2039,7 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
             if 'prev_sel_inv_id' not in st.session_state or st.session_state['prev_sel_inv_id'] != sel_inv_id:
                 st.session_state['prev_sel_inv_id'] = sel_inv_id
                 for _k in list(st.session_state.keys()):
-                    if _k.startswith("inv_item_") and "_edit_" in _k:
+                    if (_k.startswith("inv_item_") or _k.startswith("inv_date_edit_") or _k.startswith("due_date_edit_")) and "_edit_" in _k:
                         del st.session_state[_k]
                 
                 # โหลดวันที่
@@ -2072,10 +2078,16 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
             # ฟอร์มเลือกวันที่ออกใบแจ้งหนี้ และวันครบกำหนดชำระ
             col_date1, col_date2 = st.columns(2)
             with col_date1:
-                inv_date_edit = st.date_input("วันที่ออกใบแจ้งหนี้ (Invoice Date)", value=st.session_state['inv_date_edit'], format="DD/MM/YYYY", key="inv_date_edit_input")
+                inv_date_edit_cal = st.date_input("📅 วันที่ออกใบแจ้งหนี้ (เลือกจากปฏิทิน)", value=st.session_state['inv_date_edit'], format="DD/MM/YYYY", key=f"inv_date_edit_cal_{sel_inv_id}")
+                inv_date_edit_str = st.text_input("⌨️ หรือพิมพ์วันที่เอง (วว/ดด/ปปปป):", value="", placeholder=f"ตัวอย่าง: {st.session_state['inv_date_edit'].strftime('%d/%m/%Y') if st.session_state['inv_date_edit'] else datetime.date.today().strftime('%d/%m/%Y')}", key=f"inv_date_edit_str_{sel_inv_id}")
+                inv_date_edit = p_date(inv_date_edit_str) if inv_date_edit_str.strip() else inv_date_edit_cal
+                if not inv_date_edit: inv_date_edit = st.session_state['inv_date_edit']
                 st.session_state['inv_date_edit'] = inv_date_edit
             with col_date2:
-                due_date_edit = st.date_input("วันครบกำหนดชำระ (Due Date)", value=st.session_state['due_date_edit'], format="DD/MM/YYYY", key="due_date_edit_input")
+                due_date_edit_cal = st.date_input("📅 วันครบกำหนดชำระ (เลือกจากปฏิทิน)", value=st.session_state['due_date_edit'], format="DD/MM/YYYY", key=f"due_date_edit_cal_{sel_inv_id}")
+                due_date_edit_str = st.text_input("⌨️ หรือพิมพ์วันครบกำหนดเอง (วว/ดด/ปปปป):", value="", placeholder=f"ตัวอย่าง: {st.session_state['due_date_edit'].strftime('%d/%m/%Y') if st.session_state['due_date_edit'] else (datetime.date.today() + datetime.timedelta(days=30)).strftime('%d/%m/%Y')}", key=f"due_date_edit_str_{sel_inv_id}")
+                due_date_edit = p_date(due_date_edit_str) if due_date_edit_str.strip() else due_date_edit_cal
+                if not due_date_edit: due_date_edit = st.session_state['due_date_edit']
                 st.session_state['due_date_edit'] = due_date_edit
                 
             # โหลดข้อมูลใหม่จาก Job Costing & ปุ่มลบใบแจ้งหนี้
@@ -2415,7 +2427,14 @@ elif page == "💰 รับชำระเงิน (Receipt)":
             
             # รายละเอียดการรับชำระเงิน
             with st.form("create_receipt_form"):
-                rec_date = st.date_input("Receipt Date", value=datetime.date.today())
+                col_rec1, col_rec2 = st.columns(2)
+                with col_rec1:
+                    rec_date_cal = st.date_input("📅 วันที่ออกใบเสร็จ (เลือกจากปฏิทิน)", value=datetime.date.today(), format="DD/MM/YYYY")
+                with col_rec2:
+                    rec_date_str = st.text_input("⌨️ หรือพิมพ์วันที่ออกใบเสร็จเอง (วว/ดด/ปปปป):", value="", placeholder=f"ตัวอย่าง: {datetime.date.today().strftime('%d/%m/%Y')}")
+                rec_date = p_date(rec_date_str) if rec_date_str.strip() else rec_date_cal
+                if not rec_date: rec_date = datetime.date.today()
+                
                 pay_method = st.selectbox("Payment Method (วิธีรับชำระ)", ["เงินโอนเข้าบัญชีธนาคาร (Bank Transfer)", "เงินสด (Cash)", "เช็คสั่งจ่าย (Cheque)"])
                 pay_ref = st.text_input("Payment Reference (เลขสลิปโอนเงิน / เลขเช็ค)")
                 
