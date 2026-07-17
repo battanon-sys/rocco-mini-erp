@@ -1810,6 +1810,9 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
             
             if 'prev_sel_bk_id_inv' not in st.session_state or st.session_state['prev_sel_bk_id_inv'] != sel_bk_id:
                 st.session_state['prev_sel_bk_id_inv'] = sel_bk_id
+                for _k in list(st.session_state.keys()):
+                    if _k.startswith("inv_item_") and "_edit_" not in _k:
+                        del st.session_state[_k]
                 df_costs = get_data_from_sheet('Job_Costing')
                 job_sales = df_costs[df_costs['Booking ID'] == sel_bk_id] if not df_costs.empty and 'Booking ID' in df_costs.columns else pd.DataFrame()
                 
@@ -1864,19 +1867,19 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                 
                 for idx, item in enumerate(invoice_items):
                     r_cols = st.columns([2.0, 1.0, 0.6, 1.2, 1.0, 0.8, 0.9, 0.9, 1.4])
-                    r_cols[0].text_input(f"รายการที่ {idx+1}", value=item["Charge Item"], disabled=True, key=f"inv_item_charge_{idx}", label_visibility="collapsed")
-                    r_cols[1].text_input(f"ชนิดตู้ {idx+1}", value=item["Container Type"], disabled=True, key=f"inv_item_ctype_{idx}", label_visibility="collapsed")
+                    r_cols[0].text_input(f"รายการที่ {idx+1}", value=item["Charge Item"], disabled=True, key=f"inv_item_charge_{sel_bk_id}_{idx}", label_visibility="collapsed")
+                    r_cols[1].text_input(f"ชนิดตู้ {idx+1}", value=item["Container Type"], disabled=True, key=f"inv_item_ctype_{sel_bk_id}_{idx}", label_visibility="collapsed")
                     
-                    new_qty = r_cols[2].number_input(f"QTY {idx+1}", value=item["Quantity"], min_value=0.0, step=1.0, key=f"inv_item_qty_{idx}", label_visibility="collapsed")
+                    new_qty = r_cols[2].number_input(f"QTY {idx+1}", value=item["Quantity"], min_value=0.0, step=1.0, key=f"inv_item_qty_{sel_bk_id}_{idx}", label_visibility="collapsed")
                     item["Quantity"] = new_qty
                     
-                    new_price = r_cols[3].number_input(f"ราคา {idx+1} ({item['Currency']})", value=item["Unit Price"], min_value=0.0, step=10.0, key=f"inv_item_price_{idx}", label_visibility="collapsed")
+                    new_price = r_cols[3].number_input(f"ราคา {idx+1} ({item['Currency']})", value=item["Unit Price"], min_value=0.0, step=10.0, key=f"inv_item_price_{sel_bk_id}_{idx}", label_visibility="collapsed")
                     item["Unit Price"] = new_price
                     
-                    new_ex = r_cols[4].number_input(f"เรทเงิน {idx+1}", value=item["Exchange Rate"], min_value=0.0, step=0.1, format="%.4f", key=f"inv_item_ex_{idx}", label_visibility="collapsed")
+                    new_ex = r_cols[4].number_input(f"เรทเงิน {idx+1}", value=item["Exchange Rate"], min_value=0.0, step=0.1, format="%.4f", key=f"inv_item_ex_{sel_bk_id}_{idx}", label_visibility="collapsed")
                     item["Exchange Rate"] = new_ex
                     
-                    new_reimb = r_cols[5].checkbox(f"จ่ายแทน {idx+1}", value=item["Reimbursement"], key=f"inv_item_reimb_{idx}", label_visibility="collapsed")
+                    new_reimb = r_cols[5].checkbox(f"จ่ายแทน {idx+1}", value=item["Reimbursement"], key=f"inv_item_reimb_{sel_bk_id}_{idx}", label_visibility="collapsed")
                     item["Reimbursement"] = new_reimb
                     
                     vat_disabled = new_reimb
@@ -1887,7 +1890,7 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                         vat_opts.append(float(item["VAT Rate (%)"]))
                     
                     vat_val = 0.0 if new_reimb else float(item["VAT Rate (%)"])
-                    new_vat = r_cols[6].selectbox(f"VAT {idx+1}", vat_opts, index=vat_opts.index(vat_val), disabled=vat_disabled, key=f"inv_item_vat_{idx}", label_visibility="collapsed")
+                    new_vat = r_cols[6].selectbox(f"VAT {idx+1}", vat_opts, index=vat_opts.index(vat_val), disabled=vat_disabled, key=f"inv_item_vat_{sel_bk_id}_{idx}", label_visibility="collapsed")
                     item["VAT Rate (%)"] = new_vat
                     
                     wht_opts = [0.0, 1.0, 3.0, 5.0]
@@ -1895,11 +1898,11 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                         wht_opts.append(float(item["Tax Rate (%)"]))
                     
                     wht_val = 0.0 if new_reimb else float(item["Tax Rate (%)"])
-                    new_wht = r_cols[7].selectbox(f"WHT {idx+1}", wht_opts, index=wht_opts.index(wht_val), disabled=wht_disabled, key=f"inv_item_wht_{idx}", label_visibility="collapsed")
+                    new_wht = r_cols[7].selectbox(f"WHT {idx+1}", wht_opts, index=wht_opts.index(wht_val), disabled=wht_disabled, key=f"inv_item_wht_{sel_bk_id}_{idx}", label_visibility="collapsed")
                     item["Tax Rate (%)"] = new_wht
                     
                     sub_total_thb = new_qty * new_price * new_ex
-                    r_cols[8].text_input(f"รวม {idx+1}", value=f"{sub_total_thb:,.2f}", disabled=True, key=f"inv_item_total_{idx}", label_visibility="collapsed")
+                    r_cols[8].text_input(f"รวม {idx+1}", value=f"{sub_total_thb:,.2f}", disabled=True, key=f"inv_item_total_{sel_bk_id}_{idx}", label_visibility="collapsed")
                     
                     if item["Reimbursement"]:
                         reimb_amt += sub_total_thb
@@ -1981,6 +1984,11 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                         
                         st.session_state['invoice_items'] = None
                         st.session_state['prev_sel_bk_id_inv'] = None
+                        st.session_state['prev_sel_inv_id'] = None
+                        st.session_state['invoice_items_edit'] = None
+                        for _k in list(st.session_state.keys()):
+                            if _k.startswith("inv_item_"):
+                                del st.session_state[_k]
                         st.rerun()
                     except Exception as e:
                         st.error(f"เกิดข้อผิดพลาดในการบันทึกใบแจ้งหนี้: {e}")
@@ -2024,6 +2032,9 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
             # ตรวจสอบการสลับใบแจ้งหนี้เพื่อโหลดข้อมูลเข้า session state
             if 'prev_sel_inv_id' not in st.session_state or st.session_state['prev_sel_inv_id'] != sel_inv_id:
                 st.session_state['prev_sel_inv_id'] = sel_inv_id
+                for _k in list(st.session_state.keys()):
+                    if _k.startswith("inv_item_") and "_edit_" in _k:
+                        del st.session_state[_k]
                 
                 # โหลดวันที่
                 st.session_state['inv_date_edit'] = p_date(inv_row.get('Invoice Date')) or datetime.date.today()
@@ -2077,6 +2088,9 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                 
             # ลอจิกโหลดราคาขายใหม่จาก Job Costing หากติ๊กถูก
             if reload_costing and not st.session_state.get('prev_reload_costing_edit', False):
+                for _k in list(st.session_state.keys()):
+                    if _k.startswith("inv_item_") and "_edit_" in _k:
+                        del st.session_state[_k]
                 df_costs = get_data_from_sheet('Job_Costing')
                 job_sales = df_costs[df_costs['Booking ID'] == bk_id] if not df_costs.empty and 'Booking ID' in df_costs.columns else pd.DataFrame()
                 
@@ -2124,6 +2138,9 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                     st.session_state['prev_sel_inv_id'] = None
                     st.session_state['reload_costing_checkbox_edit'] = False
                     st.session_state['prev_reload_costing_edit'] = False
+                    for _k in list(st.session_state.keys()):
+                        if _k.startswith("inv_item_") and "_edit_" in _k:
+                            del st.session_state[_k]
                     st.rerun()
                 except Exception as e:
                     st.error(f"เกิดข้อผิดพลาดในการลบใบแจ้งหนี้: {e}")
@@ -2153,19 +2170,19 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                 
                 for idx, item in enumerate(invoice_items_edit):
                     r_cols = st.columns([2.0, 1.0, 0.6, 1.2, 1.0, 0.8, 0.9, 0.9, 1.4])
-                    r_cols[0].text_input(f"รายการที่ {idx+1}", value=item["Charge Item"], disabled=True, key=f"inv_item_charge_edit_{idx}", label_visibility="collapsed")
-                    r_cols[1].text_input(f"ชนิดตู้ {idx+1}", value=item["Container Type"], disabled=True, key=f"inv_item_ctype_edit_{idx}", label_visibility="collapsed")
+                    r_cols[0].text_input(f"รายการที่ {idx+1}", value=item["Charge Item"], disabled=True, key=f"inv_item_charge_edit_{sel_inv_id}_{idx}", label_visibility="collapsed")
+                    r_cols[1].text_input(f"ชนิดตู้ {idx+1}", value=item["Container Type"], disabled=True, key=f"inv_item_ctype_edit_{sel_inv_id}_{idx}", label_visibility="collapsed")
                     
-                    new_qty = r_cols[2].number_input(f"QTY {idx+1}", value=item["Quantity"], min_value=0.0, step=1.0, key=f"inv_item_qty_edit_{idx}", label_visibility="collapsed")
+                    new_qty = r_cols[2].number_input(f"QTY {idx+1}", value=item["Quantity"], min_value=0.0, step=1.0, key=f"inv_item_qty_edit_{sel_inv_id}_{idx}", label_visibility="collapsed")
                     item["Quantity"] = new_qty
                     
-                    new_price = r_cols[3].number_input(f"ราคา {idx+1} ({item['Currency']})", value=item["Unit Price"], min_value=0.0, step=10.0, key=f"inv_item_price_edit_{idx}", label_visibility="collapsed")
+                    new_price = r_cols[3].number_input(f"ราคา {idx+1} ({item['Currency']})", value=item["Unit Price"], min_value=0.0, step=10.0, key=f"inv_item_price_edit_{sel_inv_id}_{idx}", label_visibility="collapsed")
                     item["Unit Price"] = new_price
                     
-                    new_ex = r_cols[4].number_input(f"เรทเงิน {idx+1}", value=item["Exchange Rate"], min_value=0.0, step=0.1, format="%.4f", key=f"inv_item_ex_edit_{idx}", label_visibility="collapsed")
+                    new_ex = r_cols[4].number_input(f"เรทเงิน {idx+1}", value=item["Exchange Rate"], min_value=0.0, step=0.1, format="%.4f", key=f"inv_item_ex_edit_{sel_inv_id}_{idx}", label_visibility="collapsed")
                     item["Exchange Rate"] = new_ex
                     
-                    new_reimb = r_cols[5].checkbox(f"จ่ายแทน {idx+1}", value=item["Reimbursement"], key=f"inv_item_reimb_edit_{idx}", label_visibility="collapsed")
+                    new_reimb = r_cols[5].checkbox(f"จ่ายแทน {idx+1}", value=item["Reimbursement"], key=f"inv_item_reimb_edit_{sel_inv_id}_{idx}", label_visibility="collapsed")
                     item["Reimbursement"] = new_reimb
                     
                     vat_disabled = new_reimb
@@ -2176,7 +2193,7 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                         vat_opts.append(float(item["VAT Rate (%)"]))
                     
                     vat_val = 0.0 if new_reimb else float(item["VAT Rate (%)"])
-                    new_vat = r_cols[6].selectbox(f"VAT {idx+1}", vat_opts, index=vat_opts.index(vat_val), disabled=vat_disabled, key=f"inv_item_vat_edit_{idx}", label_visibility="collapsed")
+                    new_vat = r_cols[6].selectbox(f"VAT {idx+1}", vat_opts, index=vat_opts.index(vat_val), disabled=vat_disabled, key=f"inv_item_vat_edit_{sel_inv_id}_{idx}", label_visibility="collapsed")
                     item["VAT Rate (%)"] = new_vat
                     
                     wht_opts = [0.0, 1.0, 3.0, 5.0]
@@ -2184,11 +2201,11 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                         wht_opts.append(float(item["Tax Rate (%)"]))
                     
                     wht_val = 0.0 if new_reimb else float(item["Tax Rate (%)"])
-                    new_wht = r_cols[7].selectbox(f"WHT {idx+1}", wht_opts, index=wht_opts.index(wht_val), disabled=wht_disabled, key=f"inv_item_wht_edit_{idx}", label_visibility="collapsed")
+                    new_wht = r_cols[7].selectbox(f"WHT {idx+1}", wht_opts, index=wht_opts.index(wht_val), disabled=wht_disabled, key=f"inv_item_wht_edit_{sel_inv_id}_{idx}", label_visibility="collapsed")
                     item["Tax Rate (%)"] = new_wht
                     
                     sub_total_thb = new_qty * new_price * new_ex
-                    r_cols[8].text_input(f"รวม {idx+1}", value=f"{sub_total_thb:,.2f}", disabled=True, key=f"inv_item_total_edit_{idx}", label_visibility="collapsed")
+                    r_cols[8].text_input(f"รวม {idx+1}", value=f"{sub_total_thb:,.2f}", disabled=True, key=f"inv_item_total_edit_{sel_inv_id}_{idx}", label_visibility="collapsed")
                     
                     if item["Reimbursement"]:
                         reimb_amt += sub_total_thb
@@ -2346,6 +2363,9 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                         st.session_state['prev_sel_inv_id'] = None
                         st.session_state['reload_costing_checkbox_edit'] = False
                         st.session_state['prev_reload_costing_edit'] = False
+                        for _k in list(st.session_state.keys()):
+                            if _k.startswith("inv_item_") and "_edit_" in _k:
+                                del st.session_state[_k]
                         st.rerun()
                     except Exception as e:
                         st.error(f"เกิดข้อผิดพลาดในการบันทึกการแก้ไขใบแจ้งหนี้: {e}")
