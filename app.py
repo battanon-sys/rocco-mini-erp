@@ -825,12 +825,15 @@ def create_receipt_pdf(rec_row, inv_row, inv_dtl, bk_row, is_copy=False):
 
     return bytes(pdf.output())
 
-# -------------------------------------------------------------------------
 # --- 📌 GLOBAL DATA LOADER ---
 df_bk_all_global = get_data_from_sheet('Booking_Header')
 bk_opts_costing_global = []
 if not df_bk_all_global.empty:
-    bk_opts_costing_global = df_bk_all_global.apply(lambda r: f"{r['Booking ID']} - {r.get('Booking Number', '-')} - {r.get('Customer', '-')}", axis=1).tolist()
+    bk_opts_costing_global = df_bk_all_global.apply(
+        lambda r: f"{r['Booking ID']} - {r.get('Booking Number', '-')} - {r.get('Customer', '-')}" + 
+                  (" [ยกเลิก]" if str(r.get('Status', '')).lower() == 'cancelled' else ""), 
+        axis=1
+    ).tolist()
 
 # --- 📌 SIDEBAR NAVIGATION ---
 st.sidebar.title("🚢 ROCCO MINI ERP")
@@ -1208,7 +1211,8 @@ elif page == "🚢 จัดการ Booking & ต้นทุน":
                             "VGM Cut Off Date": fmt_date(vgm_date), "VGM Cut Off Time": fmt_time(vgm_time),
                             "S/I Cut Off Date": fmt_date(si_date), "S/I Cut Off Time": fmt_time(si_time),
                             "B/L Cut Off Date": fmt_date(bl_date), "B/L Cut Off Time": fmt_time(bl_time),
-                            "First Return Date": fmt_date(first_return), "Remark": remark, "Sender": sender
+                            "First Return Date": fmt_date(first_return), "Remark": remark, "Sender": sender,
+                            "Status": "Active"
                         }
                         append_record('Booking_Header', header_record)
                         
@@ -1345,11 +1349,15 @@ elif page == "🚢 จัดการ Booking & ต้นทุน":
                 with e_r2_3: 
                     e_meas = st.number_input("Measurement (CBM)", format="%.2f", value=safe_float(bk_data.get('Measurement')), key=f"e_bk_measurement_{sel_bk_id}")
 
-                e_r3_1, e_r3_2 = st.columns([1, 1])
+                e_r3_1, e_r3_2, e_r3_3 = st.columns([1, 1, 1])
                 with e_r3_1: 
                     e_bk_no = st.text_input("Booking Number", value=safe_str(bk_data.get('Booking Number')), key=f"e_bk_no_{sel_bk_id}")
                 with e_r3_2: 
                     e_bl_no = st.text_input("B/L Number", value=safe_str(bk_data.get('B/L Number')), key=f"e_bk_bl_no_{sel_bk_id}")
+                with e_r3_3:
+                    curr_status = safe_str(bk_data.get('Status')) or 'Active'
+                    status_opts = ["Active", "Cancelled", "Completed"]
+                    e_status = st.selectbox("สถานะ Booking", status_opts, index=status_opts.index(curr_status) if curr_status in status_opts else 0, key=f"e_bk_status_{sel_bk_id}")
 
                 e_r4_1, e_r4_2 = st.columns([1, 1])
                 with e_r4_1: 
@@ -1509,7 +1517,8 @@ elif page == "🚢 จัดการ Booking & ต้นทุน":
                                     "B/L Cut Off Time": fmt_time(e_bl_time),
                                     "First Return Date": fmt_date(e_first_return),
                                     "Remark": e_remark,
-                                    "Sender": e_sender
+                                    "Sender": e_sender,
+                                    "Status": e_status
                                 }
                                 update_record('Booking_Header', bk_data['airtable_record_id'], update_fields)
                                 
