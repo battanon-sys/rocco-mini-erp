@@ -2578,187 +2578,357 @@ elif page == "📊 รายงาน (Reports)":
     if df_bk.empty:
         st.info("ยังไม่มีข้อมูลสำหรับประมวลผลรายงาน")
     else:
-        # --- ส่วนที่ 1: เลือกช่วงวันที่ (Date Range Filter) ---
-        st.subheader("📅 ตัวกรองรายงาน (Report Filter)")
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            start_date = st.date_input("ตั้งแต่วันที่ (Start Date)", value=datetime.date.today().replace(day=1), format="DD/MM/YYYY")
-        with col_f2:
-            end_date = st.date_input("ถึงวันที่ (End Date)", value=datetime.date.today(), format="DD/MM/YYYY")
-            
-        # กรอง df_bk ตามช่วงวันที่
-        def parse_bk_date(val):
-            d = p_date(val)
-            return d if d else datetime.date(1970, 1, 1)
-            
-        df_bk['Parsed Date'] = df_bk['Booking Date'].apply(parse_bk_date)
-        filtered_bk = df_bk[(df_bk['Parsed Date'] >= start_date) & (df_bk['Parsed Date'] <= end_date)].copy()
+        tab_rep1, tab_rep2 = st.tabs(["📊 รายงานกำไรสุทธิและภาพรวม", "💰 รายงานสรุปต้นทุนแยกประเภทบริการ"])
         
-        if filtered_bk.empty:
-            st.warning("⚠️ ไม่พบข้อมูล Booking ในช่วงวันที่เลือก")
-        else:
-            # คำนวณสถิติภาพรวม
-            total_jobs = len(filtered_bk)
-            
-            # คำนวณกำไร/รายได้จาก Job_Costing สำหรับ Job ที่กรองมา
-            bk_ids = set(filtered_bk['Booking ID'].astype(str))
-            
-            total_cost_all = 0.0
-            total_sell_all = 0.0
-            total_profit_all = 0.0
-            
-            cost_map = {}
-            sell_map = {}
-            profit_map = {}
-            
-            if not df_costing.empty and 'Booking ID' in df_costing.columns:
-                df_costing['Total Cost (THB)'] = df_costing.apply(lambda r: safe_float(r.get('Cost Price')) * safe_float(r.get('Cost Exchange Rate', 1.0)) * safe_float(r.get('Quantity', 1.0)), axis=1)
-                df_costing['Total Selling (THB)'] = df_costing.apply(lambda r: safe_float(r.get('Selling Price')) * safe_float(r.get('Selling Exchange Rate', 1.0)) * safe_float(r.get('Quantity', 1.0)), axis=1)
-                df_costing['Profit (THB)'] = df_costing['Total Selling (THB)'] - df_costing['Total Cost (THB)']
+        with tab_rep1:
+            # --- ส่วนที่ 1: เลือกช่วงวันที่ (Date Range Filter) ---
+            st.subheader("📅 ตัวกรองรายงาน (Report Filter)")
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                start_date = st.date_input("ตั้งแต่วันที่ (Start Date)", value=datetime.date.today().replace(day=1), format="DD/MM/YYYY")
+            with col_f2:
+                end_date = st.date_input("ถึงวันที่ (End Date)", value=datetime.date.today(), format="DD/MM/YYYY")
                 
-                for b_id, group in df_costing.groupby('Booking ID'):
-                    b_str = safe_str(b_id)
-                    c_sum = group['Total Cost (THB)'].sum()
-                    s_sum = group['Total Selling (THB)'].sum()
-                    p_sum = group['Profit (THB)'].sum()
-                    cost_map[b_str] = c_sum
-                    sell_map[b_str] = s_sum
-                    profit_map[b_str] = p_sum
-                    if b_str in bk_ids:
-                        total_cost_all += c_sum
-                        total_sell_all += s_sum
-                        total_profit_all += p_sum
-                        
-            # แสดง Metric ภาพรวม
-            c1, c2, c3 = st.columns(3)
-            c1.metric("📌 จำนวนงานในช่วงวันที่เลือก", f"{total_jobs} รายการ")
-            c2.metric("💰 ยอดขายรวม (Total Selling)", f"{total_sell_all:,.2f} THB")
-            c3.metric("📈 กำไรสุทธิรวม (Net Profit)", f"{total_profit_all:,.2f} THB", delta=f"{(total_profit_all / total_sell_all * 100 if total_sell_all > 0 else 0):.1f}% Margin")
+            # กรอง df_bk ตามช่วงวันที่
+            def parse_bk_date(val):
+                d = p_date(val)
+                return d if d else datetime.date(1970, 1, 1)
+                
+            df_bk['Parsed Date'] = df_bk['Booking Date'].apply(parse_bk_date)
+            filtered_bk = df_bk[(df_bk['Parsed Date'] >= start_date) & (df_bk['Parsed Date'] <= end_date)].copy()
             
-            st.markdown("---")
-            
-            # --- ส่วนที่ 2: กราฟวิเคราะห์ (Charts & Analytics) ---
-            # แมป Customer Short Name
-            cust_short_map = {}
-            if not df_cust.empty and 'Customer Name' in df_cust.columns and 'Customer Short Name' in df_cust.columns:
-                for _, r in df_cust.iterrows():
-                    c_name = safe_str(r.get('Customer Name'))
-                    c_short = safe_str(r.get('Customer Short Name'))
-                    if c_name:
-                        cust_short_map[c_name] = c_short if c_short else c_name
+            if filtered_bk.empty:
+                st.warning("⚠️ ไม่พบข้อมูล Booking ในช่วงวันที่เลือก")
+            else:
+                # คำนวณสถิติภาพรวม
+                total_jobs = len(filtered_bk)
+                
+                # คำนวณกำไร/รายได้จาก Job_Costing สำหรับ Job ที่กรองมา
+                bk_ids = set(filtered_bk['Booking ID'].astype(str))
+                
+                total_cost_all = 0.0
+                total_sell_all = 0.0
+                total_profit_all = 0.0
+                
+                cost_map = {}
+                sell_map = {}
+                profit_map = {}
+                
+                if not df_costing.empty and 'Booking ID' in df_costing.columns:
+                    df_costing['Total Cost (THB)'] = df_costing.apply(lambda r: safe_float(r.get('Cost Price')) * safe_float(r.get('Cost Exchange Rate', 1.0)) * safe_float(r.get('Quantity', 1.0)), axis=1)
+                    df_costing['Total Selling (THB)'] = df_costing.apply(lambda r: safe_float(r.get('Selling Price')) * safe_float(r.get('Selling Exchange Rate', 1.0)) * safe_float(r.get('Quantity', 1.0)), axis=1)
+                    df_costing['Profit (THB)'] = df_costing['Total Selling (THB)'] - df_costing['Total Cost (THB)']
+                    
+                    for b_id, group in df_costing.groupby('Booking ID'):
+                        b_str = safe_str(b_id)
+                        c_sum = group['Total Cost (THB)'].sum()
+                        s_sum = group['Total Selling (THB)'].sum()
+                        p_sum = group['Profit (THB)'].sum()
+                        cost_map[b_str] = c_sum
+                        sell_map[b_str] = s_sum
+                        profit_map[b_str] = p_sum
+                        if b_str in bk_ids:
+                            total_cost_all += c_sum
+                            total_sell_all += s_sum
+                            total_profit_all += p_sum
+                            
+                # แสดง Metric ภาพรวม
+                c1, c2, c3 = st.columns(3)
+                c1.metric("📌 จำนวนงานในช่วงวันที่เลือก", f"{total_jobs} รายการ")
+                c2.metric("💰 ยอดขายรวม (Total Selling)", f"{total_sell_all:,.2f} THB")
+                c3.metric("📈 กำไรสุทธิรวม (Net Profit)", f"{total_profit_all:,.2f} THB", delta=f"{(total_profit_all / total_sell_all * 100 if total_sell_all > 0 else 0):.1f}% Margin")
+                
+                st.markdown("---")
+                
+                # --- ส่วนที่ 2: กราฟวิเคราะห์ (Charts & Analytics) ---
+                # แมป Customer Short Name
+                cust_short_map = {}
+                if not df_cust.empty and 'Customer Name' in df_cust.columns and 'Customer Short Name' in df_cust.columns:
+                    for _, r in df_cust.iterrows():
+                        c_name = safe_str(r.get('Customer Name'))
+                        c_short = safe_str(r.get('Customer Short Name'))
+                        if c_name:
+                            cust_short_map[c_name] = c_short if c_short else c_name
+                            
+                # แมป Liner Short Name
+                liner_short_map = {}
+                if not df_liner.empty and 'Liner Name' in df_liner.columns:
+                    for _, r in df_liner.iterrows():
+                        l_name = safe_str(r.get('Liner Name'))
+                        l_short = safe_str(r.get('Liner Short Name', l_name))
+                        if l_name:
+                            liner_short_map[l_name] = l_short if l_short else l_name
+                            
+                # แมป Volume จาก Booking_Detail
+                vol_map = {}
+                if not df_bd.empty and 'Booking ID' in df_bd.columns:
+                    for b_id, group in df_bd.groupby('Booking ID'):
+                        v_list = []
+                        for _, r in group.iterrows():
+                            num_val = safe_float(r.get('Number'), 0)
+                            if num_val > 0:
+                                v_list.append(f"{num_val:g} x {safe_str(r.get('Container Type'))}")
+                            else:
+                                v_list.append(safe_str(r.get('Container Type')))
+                        vol_map[safe_str(b_id)] = ", ".join([v for v in v_list if v])
                         
-            # แมป Liner Short Name
-            liner_short_map = {}
-            if not df_liner.empty and 'Liner Name' in df_liner.columns:
-                for _, r in df_liner.iterrows():
-                    l_name = safe_str(r.get('Liner Name'))
-                    l_short = safe_str(r.get('Liner Short Name', l_name))
-                    if l_name:
-                        liner_short_map[l_name] = l_short if l_short else l_name
-                        
-            # แมป Volume จาก Booking_Detail
-            vol_map = {}
-            if not df_bd.empty and 'Booking ID' in df_bd.columns:
-                for b_id, group in df_bd.groupby('Booking ID'):
-                    v_list = []
-                    for _, r in group.iterrows():
-                        num_val = safe_float(r.get('Number'), 0)
-                        if num_val > 0:
-                            v_list.append(f"{num_val:g} x {safe_str(r.get('Container Type'))}")
+                # สร้างตารางข้อมูล 14 คอลัมน์
+                report_rows = []
+                for _, r in filtered_bk.iterrows():
+                    b_id = safe_str(r.get('Booking ID'))
+                    c_full = safe_str(r.get('Customer'))
+                    c_short = cust_short_map.get(c_full, c_full)
+                    l_full = safe_str(r.get('Liner'))
+                    l_short = liner_short_map.get(l_full, l_full)
+                    
+                    vol_str = vol_map.get(b_id, "")
+                    if not vol_str:
+                        w = safe_float(r.get('Weight'), 0)
+                        m = safe_float(r.get('Measurement'), 0)
+                        if w > 0 or m > 0:
+                            vol_str = f"LCL ({w:g} KGS / {m:g} CBM)"
                         else:
-                            v_list.append(safe_str(r.get('Container Type')))
-                    vol_map[safe_str(b_id)] = ", ".join([v for v in v_list if v])
+                            vol_str = "-"
+                            
+                    c_val = cost_map.get(b_id, 0.0)
+                    s_val = sell_map.get(b_id, 0.0)
+                    p_val = profit_map.get(b_id, 0.0)
                     
-            # สร้างตารางข้อมูล 14 คอลัมน์
-            report_rows = []
-            for _, r in filtered_bk.iterrows():
-                b_id = safe_str(r.get('Booking ID'))
-                c_full = safe_str(r.get('Customer'))
-                c_short = cust_short_map.get(c_full, c_full)
-                l_full = safe_str(r.get('Liner'))
-                l_short = liner_short_map.get(l_full, l_full)
+                    report_rows.append({
+                        "booking id": b_id,
+                        "booking date": safe_str(r.get('Booking Date')),
+                        "customer (short name)": c_short,
+                        "booking number": safe_str(r.get('Booking Number')),
+                        "b/l number": safe_str(r.get('B/L Number')),
+                        "volume": vol_str,
+                        "port loading": safe_str(r.get('Port Loading')),
+                        "port discharge": safe_str(r.get('Port Discharge')),
+                        "liner (short name)": l_short,
+                        "etd": safe_str(r.get('ETD')),
+                        "eta": safe_str(r.get('ETA')),
+                        "cost (thb)": c_val,
+                        "selling (thb)": s_val,
+                        "profit (thb)": p_val
+                    })
+                    
+                df_report = pd.DataFrame(report_rows)
                 
-                vol_str = vol_map.get(b_id, "")
-                if not vol_str:
-                    w = safe_float(r.get('Weight'), 0)
-                    m = safe_float(r.get('Measurement'), 0)
-                    if w > 0 or m > 0:
-                        vol_str = f"LCL ({w:g} KGS / {m:g} CBM)"
+                # กราฟ
+                col_ch1, col_ch2 = st.columns(2)
+                with col_ch1:
+                    st.markdown("#### 🏆 กำไรสุทธิแยกตามลูกค้า (Net Profit by Customer)")
+                    cust_profit = df_report.groupby('customer (short name)')['profit (thb)'].sum().reset_index()
+                    cust_profit = cust_profit.sort_values(by='profit (thb)', ascending=False)
+                    st.bar_chart(data=cust_profit, x='customer (short name)', y='profit (thb)', use_container_width=True)
+                    
+                with col_ch2:
+                    st.markdown("#### 🚢 สัดส่วนการใช้สายเรือ (Liner Usage Distribution)")
+                    liner_dist = df_report['liner (short name)'].value_counts().reset_index()
+                    liner_dist.columns = ['liner', 'count']
+                    if not liner_dist.empty:
+                        donut = alt.Chart(liner_dist).mark_arc(innerRadius=50).encode(
+                            theta=alt.Theta(field="count", type="quantitative"),
+                            color=alt.Color(field="liner", type="nominal", title="สายเรือ"),
+                            tooltip=['liner', 'count']
+                        ).properties(height=300)
+                        st.altair_chart(donut, use_container_width=True)
                     else:
-                        vol_str = "-"
+                        st.info("ไม่มีข้อมูลสายเรือ")
                         
-                c_val = cost_map.get(b_id, 0.0)
-                s_val = sell_map.get(b_id, 0.0)
-                p_val = profit_map.get(b_id, 0.0)
+                st.markdown("---")
                 
-                report_rows.append({
-                    "booking id": b_id,
-                    "booking date": safe_str(r.get('Booking Date')),
-                    "customer (short name)": c_short,
-                    "booking number": safe_str(r.get('Booking Number')),
-                    "b/l number": safe_str(r.get('B/L Number')),
-                    "volume": vol_str,
-                    "port loading": safe_str(r.get('Port Loading')),
-                    "port discharge": safe_str(r.get('Port Discharge')),
-                    "liner (short name)": l_short,
-                    "etd": safe_str(r.get('ETD')),
-                    "eta": safe_str(r.get('ETA')),
-                    "cost (thb)": c_val,
-                    "selling (thb)": s_val,
-                    "profit (thb)": p_val
-                })
+                # --- ส่วนที่ 3: ตารางข้อมูลรายงาน & ดาวน์โหลด Excel ---
+                st.markdown("#### 📋 ตารางข้อมูลสรุปการขนส่งและกำไร (Shipment & Profit Report Table)")
                 
-            df_report = pd.DataFrame(report_rows)
-            
-            # กราฟ
-            col_ch1, col_ch2 = st.columns(2)
-            with col_ch1:
-                st.markdown("#### 🏆 กำไรสุทธิแยกตามลูกค้า (Net Profit by Customer)")
-                cust_profit = df_report.groupby('customer (short name)')['profit (thb)'].sum().reset_index()
-                cust_profit = cust_profit.sort_values(by='profit (thb)', ascending=False)
-                st.bar_chart(data=cust_profit, x='customer (short name)', y='profit (thb)', use_container_width=True)
+                # จัดรูปแบบตัวเลขสำหรับการแสดงผลบนตารางเว็บ
+                df_display = df_report.copy()
+                df_display['cost (thb)'] = df_display['cost (thb)'].apply(lambda x: f"{x:,.2f}")
+                df_display['selling (thb)'] = df_display['selling (thb)'].apply(lambda x: f"{x:,.2f}")
+                df_display['profit (thb)'] = df_display['profit (thb)'].apply(lambda x: f"{x:,.2f}")
                 
-            with col_ch2:
-                st.markdown("#### 🚢 สัดส่วนการใช้สายเรือ (Liner Usage Distribution)")
-                liner_dist = df_report['liner (short name)'].value_counts().reset_index()
-                liner_dist.columns = ['liner', 'count']
-                if not liner_dist.empty:
-                    donut = alt.Chart(liner_dist).mark_arc(innerRadius=50).encode(
-                        theta=alt.Theta(field="count", type="quantitative"),
-                        color=alt.Color(field="liner", type="nominal", title="สายเรือ"),
-                        tooltip=['liner', 'count']
-                    ).properties(height=300)
-                    st.altair_chart(donut, use_container_width=True)
-                else:
-                    st.info("ไม่มีข้อมูลสายเรือ")
+                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                
+                # ปุ่มดาวน์โหลด Excel (.xlsx)
+                def generate_excel_report(df):
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False, sheet_name='Shipment_Report')
+                    return output.getvalue()
                     
-            st.markdown("---")
-            
-            # --- ส่วนที่ 3: ตารางข้อมูลรายงาน & ดาวน์โหลด Excel ---
-            st.markdown("#### 📋 ตารางข้อมูลสรุปการขนส่งและกำไร (Shipment & Profit Report Table)")
-            
-            # จัดรูปแบบตัวเลขสำหรับการแสดงผลบนตารางเว็บ
-            df_display = df_report.copy()
-            df_display['cost (thb)'] = df_display['cost (thb)'].apply(lambda x: f"{x:,.2f}")
-            df_display['selling (thb)'] = df_display['selling (thb)'].apply(lambda x: f"{x:,.2f}")
-            df_display['profit (thb)'] = df_display['profit (thb)'].apply(lambda x: f"{x:,.2f}")
-            
-            st.dataframe(df_display, use_container_width=True, hide_index=True)
-            
-            # ปุ่มดาวน์โหลด Excel (.xlsx)
-            def generate_excel_report(df):
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Shipment_Report')
-                return output.getvalue()
+                excel_bytes = generate_excel_report(df_report)
                 
-            excel_bytes = generate_excel_report(df_report)
+                st.download_button(
+                    label="📥 ดาวน์โหลดรายงานเป็นไฟล์ Excel (.xlsx)",
+                    data=excel_bytes,
+                    file_name=f"ROCCO_Report_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary",
+                    use_container_width=True
+                )
+                
+        with tab_rep2:
+            st.subheader("💰 รายงานสรุปต้นทุนแยกประเภทบริการ (Cost by Charge Item Report)")
             
-            st.download_button(
-                label="📥 ดาวน์โหลดรายงานเป็นไฟล์ Excel (.xlsx)",
-                data=excel_bytes,
-                file_name=f"ROCCO_Report_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                type="primary",
-                use_container_width=True
-            )
+            # 1. ตัวเลือกตัวกรองรายงาน
+            col_tf1, col_tf2 = st.columns(2)
+            with col_tf1:
+                cust_names = []
+                if not df_cust.empty and 'Customer Name' in df_cust.columns:
+                    cust_names = sorted(df_cust['Customer Name'].dropna().unique().tolist())
+                sel_cust_report = st.selectbox("👤 เลือกลูกค้า (Select Customer):", cust_names, key="rep_sel_cust")
+            with col_tf2:
+                charge_items = []
+                df_charge_master = get_data_from_sheet('Charge Item')
+                if not df_charge_master.empty and 'Charge Item' in df_charge_master.columns:
+                    charge_items = sorted(df_charge_master['Charge Item'].dropna().unique().tolist())
+                if not df_costing.empty and 'Charge Item' in df_costing.columns:
+                    charge_items = sorted(list(set(charge_items + df_costing['Charge Item'].dropna().tolist())))
+                sel_charge_report = st.selectbox("💲 เลือกประเภทบริการ (Select Charge Item):", charge_items, key="rep_sel_charge")
+            
+            col_tf3, col_tf4 = st.columns(2)
+            with col_tf3:
+                start_date_t2 = st.date_input("ตั้งแต่วันที่ (Start Date - ETD)", value=datetime.date.today().replace(day=1), format="DD/MM/YYYY", key="rep_start_date_t2")
+            with col_tf4:
+                end_date_t2 = st.date_input("ถึงวันที่ (End Date - ETD)", value=datetime.date.today(), format="DD/MM/YYYY", key="rep_end_date_t2")
+            
+            if sel_cust_report and sel_charge_report:
+                # 2. ค้นหาและกรองข้อมูลต้นทุน
+                df_bk_filtered = df_bk.copy()
+                def parse_date_etd(val):
+                    d = p_date(val)
+                    return d if d else datetime.date(1970, 1, 1)
+                df_bk_filtered['Parsed ETD'] = df_bk_filtered['ETD'].apply(parse_date_etd)
+                
+                df_bk_filtered = df_bk_filtered[
+                    (df_bk_filtered['Customer'].astype(str) == sel_cust_report) &
+                    (df_bk_filtered['Parsed ETD'] >= start_date_t2) &
+                    (df_bk_filtered['Parsed ETD'] <= end_date_t2)
+                ]
+                
+                if df_bk_filtered.empty:
+                    st.warning("⚠️ ไม่พบข้อมูล Booking ของลูกค้ารายนี้ในช่วงเวลาเรือออก (ETD) ที่เลือก")
+                else:
+                    bk_ids = set(df_bk_filtered['Booking ID'].astype(str))
+                    
+                    if df_costing.empty:
+                        st.warning("⚠️ ไม่พบข้อมูลต้นทุนในระบบ")
+                    else:
+                        jc_filtered = df_costing[
+                            (df_costing['Booking ID'].astype(str).isin(bk_ids)) &
+                            (df_costing['Charge Item'].astype(str) == sel_charge_report)
+                        ].copy()
+                        
+                        if jc_filtered.empty:
+                            st.warning(f"⚠️ ไม่พบรายการต้นทุน '{sel_charge_report}' ของลูกค้ารายนี้ในช่วงเวลาดังกล่าว")
+                        else:
+                            # 3. จัดทำตารางข้อมูล
+                            # bl number / feeder name, voyage / etd / cost / volume / exchange / subtotal / wht 3% / total
+                            bk_map = {}
+                            for _, r in df_bk_filtered.iterrows():
+                                b_id = safe_str(r.get('Booking ID'))
+                                bk_map[b_id] = {
+                                    'bl_number': safe_str(r.get('B/L Number', '-')),
+                                    'feeder_voyage': safe_str(r.get('Feeder/Voyage', '-')),
+                                    'etd': format_doc_date(r.get('ETD'))
+                                }
+                                
+                            report_data = []
+                            for _, r in jc_filtered.iterrows():
+                                b_id = safe_str(r.get('Booking ID'))
+                                b_info = bk_map.get(b_id, {'bl_number': '-', 'feeder_voyage': '-', 'etd': '-'})
+                                
+                                cost_val = safe_float(r.get('Cost Price'), 0.0)
+                                qty_val = safe_float(r.get('Quantity'), 0.0)
+                                ex_val = safe_float(r.get('Cost Exchange Rate'), 1.0)
+                                if ex_val <= 0: ex_val = 1.0
+                                
+                                c_type = safe_str(r.get('Container Type'))
+                                vol_str = f"{qty_val:g} x {c_type}" if c_type else f"{qty_val:g}"
+                                
+                                subtotal = cost_val * qty_val * ex_val
+                                wht_val = subtotal * 0.03
+                                total_val = subtotal - wht_val
+                                
+                                report_data.append({
+                                    "B/L Number": b_info['bl_number'],
+                                    "Feeder / Voyage": b_info['feeder_voyage'],
+                                    "ETD": b_info['etd'],
+                                    "Cost": cost_val,
+                                    "Volume": vol_str,
+                                    "Exchange": ex_val,
+                                    "Subtotal": subtotal,
+                                    "WHT 3%": wht_val,
+                                    "Total": total_val
+                                })
+                                
+                            df_rep = pd.DataFrame(report_data)
+                            
+                            # สรุปท้ายรายงาน
+                            sum_subtotal = df_rep['Subtotal'].sum()
+                            sum_wht = df_rep['WHT 3%'].sum()
+                            sum_total = df_rep['Total'].sum()
+                            
+                            summary_row = pd.DataFrame([{
+                                "B/L Number": "ยอดรวมทั้งหมด (Total Summary)",
+                                "Feeder / Voyage": "",
+                                "ETD": "",
+                                "Cost": None,
+                                "Volume": "",
+                                "Exchange": None,
+                                "Subtotal": sum_subtotal,
+                                "WHT 3%": sum_wht,
+                                "Total": sum_total
+                            }])
+                            
+                            df_rep_with_sum = pd.concat([df_rep, summary_row], ignore_index=True)
+                            
+                            df_rep_display = df_rep_with_sum.copy()
+                            def fmt_currency(val):
+                                if val is None or pd.isna(val): return ""
+                                return f"{val:,.2f}"
+                                
+                            df_rep_display['Cost'] = df_rep_display['Cost'].apply(lambda x: fmt_currency(x) if x is not None else "")
+                            df_rep_display['Exchange'] = df_rep_display['Exchange'].apply(lambda x: f"{x:.4f}" if x is not None else "")
+                            df_rep_display['Subtotal'] = df_rep_display['Subtotal'].apply(fmt_currency)
+                            df_rep_display['WHT 3%'] = df_rep_display['WHT 3%'].apply(fmt_currency)
+                            df_rep_display['Total'] = df_rep_display['Total'].apply(fmt_currency)
+                            
+                            st.dataframe(df_rep_display, use_container_width=True, hide_index=True)
+                            
+                            # 4. ปุ่มดาวน์โหลดรายงาน Excel
+                            def generate_cost_excel(df_data, s_sub, s_wht, s_tot):
+                                output = io.BytesIO()
+                                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                                    df_data.to_excel(writer, index=False, sheet_name='Cost_Summary_Report')
+                                    
+                                    workbook = writer.book
+                                    worksheet = writer.sheets['Cost_Summary_Report']
+                                    
+                                    # เขียนและจัดรูปแบบสรุปตัวหนาแถวสุดท้าย
+                                    last_row = len(df_data) + 2
+                                    worksheet.cell(row=last_row, column=1, value="ยอดรวมทั้งหมด (Total Summary)")
+                                    worksheet.cell(row=last_row, column=7, value=s_sub)
+                                    worksheet.cell(row=last_row, column=8, value=s_wht)
+                                    worksheet.cell(row=last_row, column=9, value=s_tot)
+                                    
+                                    from openpyxl.styles import Font
+                                    bold_font = Font(bold=True)
+                                    worksheet.cell(row=last_row, column=1).font = bold_font
+                                    for col in (7, 8, 9):
+                                        cell = worksheet.cell(row=last_row, column=col)
+                                        cell.font = bold_font
+                                        cell.number_format = '#,##0.00'
+                                        
+                                return output.getvalue()
+                                
+                            cost_excel_bytes = generate_cost_excel(df_rep, sum_subtotal, sum_wht, sum_total)
+                            
+                            st.download_button(
+                                label="📥 ดาวน์โหลดรายงานสรุปต้นทุนเป็น Excel (.xlsx)",
+                                data=cost_excel_bytes,
+                                file_name=f"ROCCO_Cost_Report_{sel_cust_report}_{sel_charge_report}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                type="primary",
+                                use_container_width=True,
+                                key="btn_dl_cost_excel"
+                            )
