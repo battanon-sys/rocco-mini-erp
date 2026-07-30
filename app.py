@@ -886,22 +886,22 @@ def create_cost_report_pdf(cust_name, charge_item, start_date, end_date, df_rep,
     pdf.ln(4)
     
     # 3. Report Data Table
-    if has_font: pdf.set_font("THSarabun", "B", 9)
-    else: pdf.set_font("Arial", "B", 7)
+    if has_font: pdf.set_font("THSarabun", "B", 8)
+    else: pdf.set_font("Arial", "B", 6)
     
     # Table headers
     headers = ["B/L Number", "Feeder / Voyage", "ETD", "Cost", "Volume", "Exchange", "Subtotal", "WHT 3%", "Total"]
     # Col widths (summing up to 190mm)
-    col_w = (32, 28, 18, 18, 18, 16, 20, 20, 20)
+    col_w = (30, 30, 22, 14, 18, 18, 18, 20, 20)
     
     # Render Table
-    with pdf.table(text_align=("L", "L", "C", "R", "C", "R", "R", "R", "R"), col_widths=col_w, line_height=7, width=190) as table:
+    with pdf.table(text_align=("L", "L", "C", "R", "C", "R", "R", "R", "R"), col_widths=col_w, line_height=6.5, width=190) as table:
         hdr_row = table.row()
         for h in headers:
             hdr_row.cell(h)
             
-        if has_font: pdf.set_font("THSarabun", "", 9)
-        else: pdf.set_font("Arial", "", 7)
+        if has_font: pdf.set_font("THSarabun", "", 8)
+        else: pdf.set_font("Arial", "", 6)
         
         for _, r in df_rep.iterrows():
             cost_val = r.get("Cost")
@@ -924,8 +924,8 @@ def create_cost_report_pdf(cust_name, charge_item, start_date, end_date, df_rep,
             row.cell(tot_str)
             
         # Summary Row
-        if has_font: pdf.set_font("THSarabun", "B", 9)
-        else: pdf.set_font("Arial", "B", 7)
+        if has_font: pdf.set_font("THSarabun", "B", 8)
+        else: pdf.set_font("Arial", "B", 6)
         sum_row = table.row()
         sum_row.cell("ยอดรวมทั้งหมด (Total Summary)", colspan=6)
         sum_row.cell(f"{sum_subtotal:,.2f}")
