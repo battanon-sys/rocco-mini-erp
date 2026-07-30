@@ -825,6 +825,115 @@ def create_receipt_pdf(rec_row, inv_row, inv_dtl, bk_row, is_copy=False):
 
     return bytes(pdf.output())
 
+# -------------------------------------------------------------------------
+# 🛠️ ฟังก์ชันสร้าง PDF รายงานสรุปต้นทุนแยกประเภทบริการ (Cost by Charge Item Report PDF)
+def create_cost_report_pdf(cust_name, charge_item, start_date, end_date, df_rep, sum_subtotal, sum_wht, sum_total):
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    try:
+        pdf.add_font("THSarabun", style="", fname="THSarabunNew.ttf", uni=True)
+        pdf.add_font("THSarabun", style="B", fname="THSarabunNew Bold.ttf", uni=True)
+        has_font = True
+    except:
+        has_font = False
+        
+    pdf.add_page()
+    pdf.set_margins(10, 10, 10)
+    
+    # 1. Company Header
+    if has_font: pdf.set_font("THSarabun", "B", 18)
+    else: pdf.set_font("Arial", "B", 14)
+    pdf.set_text_color(28, 69, 135)
+    pdf.cell(100, 8, "ROCCO (THAILAND) CO., LTD.", ln=True)
+    
+    if has_font: pdf.set_font("THSarabun", "", 10)
+    else: pdf.set_font("Arial", "", 8)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(100, 5, "90/123 MOO 15, PLEX-BANGNA, BANGNA-TRAD ROAD,", ln=True)
+    pdf.cell(100, 5, "T.BANGKAEW, A.BANGPLEE SAMUT PRAKARN 10540", ln=True)
+    pdf.cell(100, 5, "TEL : 662 - 1307822 , EMAIL : sales@rocco-thailand.com", ln=True)
+    pdf.cell(100, 5, "TAX ID: 0115560022933 / HEAD OFFICE", ln=True)
+    pdf.ln(3)
+    
+    pdf.set_draw_color(180, 180, 180)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(4)
+    
+    # 2. Document Title & Info
+    if has_font: pdf.set_font("THSarabun", "B", 16)
+    else: pdf.set_font("Arial", "B", 12)
+    pdf.set_text_color(28, 69, 135)
+    pdf.cell(0, 8, "COST BY CHARGE ITEM REPORT", ln=True, align="C")
+    pdf.ln(2)
+    
+    # Filter Metadata info table
+    if has_font: pdf.set_font("THSarabun", "", 11)
+    else: pdf.set_font("Arial", "", 9)
+    pdf.set_text_color(0, 0, 0)
+    
+    pdf.cell(30, 6, "Customer:", 0, 0)
+    if has_font: pdf.set_font("THSarabun", "B", 11)
+    pdf.cell(80, 6, cust_name, 0, 0)
+    if has_font: pdf.set_font("THSarabun", "", 11)
+    pdf.cell(30, 6, "Report Date:", 0, 0)
+    pdf.cell(50, 6, datetime.date.today().strftime('%d-%m-%Y'), 0, 1)
+    
+    pdf.cell(30, 6, "Charge Item:", 0, 0)
+    if has_font: pdf.set_font("THSarabun", "B", 11)
+    pdf.cell(80, 6, charge_item, 0, 0)
+    if has_font: pdf.set_font("THSarabun", "", 11)
+    pdf.cell(30, 6, "Period (ETD):", 0, 0)
+    pdf.cell(50, 6, f"{start_date.strftime('%d-%m-%Y')} to {end_date.strftime('%d-%m-%Y')}", 0, 1)
+    pdf.ln(4)
+    
+    # 3. Report Data Table
+    if has_font: pdf.set_font("THSarabun", "B", 9)
+    else: pdf.set_font("Arial", "B", 7)
+    
+    # Table headers
+    headers = ["B/L Number", "Feeder / Voyage", "ETD", "Cost", "Volume", "Exchange", "Subtotal", "WHT 3%", "Total"]
+    # Col widths (summing up to 190mm)
+    col_w = (32, 28, 18, 18, 18, 16, 20, 20, 20)
+    
+    # Render Table
+    with pdf.table(text_align=("L", "L", "C", "R", "C", "R", "R", "R", "R"), col_widths=col_w, line_height=7, width=190) as table:
+        hdr_row = table.row()
+        for h in headers:
+            hdr_row.cell(h)
+            
+        if has_font: pdf.set_font("THSarabun", "", 9)
+        else: pdf.set_font("Arial", "", 7)
+        
+        for _, r in df_rep.iterrows():
+            cost_val = r.get("Cost")
+            cost_str = f"{cost_val:,.2f}" if cost_val is not None else ""
+            ex_val = r.get("Exchange")
+            ex_str = f"{ex_val:.4f}" if ex_val is not None else ""
+            sub_str = f"{r.get('Subtotal'):,.2f}"
+            wht_str = f"{r.get('WHT 3%'):,.2f}"
+            tot_str = f"{r.get('Total'):,.2f}"
+            
+            row = table.row()
+            row.cell(str(r.get("B/L Number")))
+            row.cell(str(r.get("Feeder / Voyage")))
+            row.cell(str(r.get("ETD")))
+            row.cell(cost_str)
+            row.cell(str(r.get("Volume")))
+            row.cell(ex_str)
+            row.cell(sub_str)
+            row.cell(wht_str)
+            row.cell(tot_str)
+            
+        # Summary Row
+        if has_font: pdf.set_font("THSarabun", "B", 9)
+        else: pdf.set_font("Arial", "B", 7)
+        sum_row = table.row()
+        sum_row.cell("ยอดรวมทั้งหมด (Total Summary)", colspan=6)
+        sum_row.cell(f"{sum_subtotal:,.2f}")
+        sum_row.cell(f"{sum_wht:,.2f}")
+        sum_row.cell(f"{sum_total:,.2f}")
+        
+    return bytes(pdf.output())
+
 # --- 📌 GLOBAL DATA LOADER ---
 df_bk_all_global = get_data_from_sheet('Booking_Header')
 bk_opts_costing_global = []
@@ -2921,14 +3030,25 @@ elif page == "📊 รายงาน (Reports)":
                                         
                                 return output.getvalue()
                                 
-                            cost_excel_bytes = generate_cost_excel(df_rep, sum_subtotal, sum_wht, sum_total)
-                            
-                            st.download_button(
-                                label="📥 ดาวน์โหลดรายงานสรุปต้นทุนเป็น Excel (.xlsx)",
-                                data=cost_excel_bytes,
-                                file_name=f"ROCCO_Cost_Report_{sel_cust_report}_{sel_charge_report}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                type="primary",
-                                use_container_width=True,
-                                key="btn_dl_cost_excel"
-                            )
+                            col_dl1, col_dl2 = st.columns(2)
+                            with col_dl1:
+                                cost_excel_bytes = generate_cost_excel(df_rep, sum_subtotal, sum_wht, sum_total)
+                                st.download_button(
+                                    label="📥 ดาวน์โหลดรายงานสรุปต้นทุนเป็น Excel (.xlsx)",
+                                    data=cost_excel_bytes,
+                                    file_name=f"ROCCO_Cost_Report_{sel_cust_report}_{sel_charge_report}.xlsx",
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    type="primary",
+                                    use_container_width=True,
+                                    key="btn_dl_cost_excel"
+                                )
+                            with col_dl2:
+                                cost_pdf_bytes = create_cost_report_pdf(sel_cust_report, sel_charge_report, start_date_t2, end_date_t2, df_rep, sum_subtotal, sum_wht, sum_total)
+                                st.download_button(
+                                    label="📄 ดาวน์โหลดรายงานสรุปต้นทุนเป็น PDF (.pdf)",
+                                    data=cost_pdf_bytes,
+                                    file_name=f"ROCCO_Cost_Report_{sel_cust_report}_{sel_charge_report}.pdf",
+                                    mime="application/pdf",
+                                    use_container_width=True,
+                                    key="btn_dl_cost_pdf"
+                                )
