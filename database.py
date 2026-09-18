@@ -41,7 +41,8 @@ PK_MAP = {
     "Invoice_Header": "Invoice ID",
     "Invoice_Detail": "Invoice Detail ID",
     "Receipt_Header": "Receipt ID",
-    "Job_Costing": "Costing ID"
+    "Job_Costing": "Costing ID",
+    "Bank_Account": "Bank ID"
 }
 
 # --- 🌀 ฟังก์ชันหลักที่ทำงานร่วมกับ Streamlit (เหมือนโครงสร้างเดิมของท่าน) ---
@@ -116,6 +117,9 @@ def _cache_Currency(): return _fetch_table_raw("Currency")
 @st.cache_data(ttl=300, show_spinner=False)
 def _cache_Sender(): return _fetch_table_raw("Sender")
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _cache_Bank_Account(): return _fetch_table_raw("Bank_Account")
+
 CACHE_MAP = {
     "Customer": _cache_Customer,
     "Booking_Header": _cache_Booking_Header,
@@ -132,7 +136,8 @@ CACHE_MAP = {
     "Tax (%)": _cache_Tax,
     "VAT (%)": _cache_VAT,
     "Currency": _cache_Currency,
-    "Sender": _cache_Sender
+    "Sender": _cache_Sender,
+    "Bank_Account": _cache_Bank_Account
 }
 
 def get_data_from_sheet(table_name):
