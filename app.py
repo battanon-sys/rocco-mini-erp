@@ -77,7 +77,8 @@ master_configs = [
     {'name': 'Tax (%)', 'sheet': 'Tax (%)', 'id': 'Tax ID', 'pre': 'T', 'cols': ['Tax (%)']},
     {'name': 'VAT (%)', 'sheet': 'VAT (%)', 'id': 'VAT ID', 'pre': 'V', 'cols': ['VAT (%)']},
     {'name': 'Currency (สกุลเงิน)', 'sheet': 'Currency', 'id': 'Currency ID', 'pre': 'CU', 'cols': ['Currency']},
-    {'name': 'Sender', 'sheet': 'Sender', 'id': 'Sender ID', 'pre': 'S', 'cols': ['Sender Name', 'Sender Phone']}
+    {'name': 'Sender', 'sheet': 'Sender', 'id': 'Sender ID', 'pre': 'S', 'cols': ['Sender Name', 'Sender Phone']},
+    {'name': 'บัญชีธนาคาร (Bank Account)', 'sheet': 'Bank_Account', 'id': 'Bank ID', 'pre': 'BNK', 'cols': ['Account Owner', 'Bank Name', 'Branch', 'Account Type', 'Account Number']}
 ]
 
 # --- 🛡️ Helper Functions ---
@@ -546,7 +547,7 @@ def create_invoice_pdf(inv_row, inv_dtl, bk_row, bank_info, cust_address, df_bd,
 
     return bytes(pdf.output())
 
-def create_commercial_invoice_pdf(inv_row, inv_dtl, bk_row, bank_info, cust_address, df_bd, cust_tax):
+def create_commercial_invoice_pdf(inv_row, inv_dtl, bk_row, bank_info, cust_address, df_bd, cust_tax, bank_acc_dict=None):
     pdf = FPDF(orientation="P", unit="mm", format="A4")
     try:
         pdf.add_font("THSarabun", style="", fname="THSarabunNew.ttf", uni=True)
@@ -627,28 +628,30 @@ def create_commercial_invoice_pdf(inv_row, inv_dtl, bk_row, bank_info, cust_addr
     pdf.ln(3)
 
     # --- TABLE ---
-    # Column Widths: 80, 15, 25, 25, 20, 25 (Total = 190mm)
-    if has_font: pdf.set_font("THSarabun", "B", 9)
-    else: pdf.set_font("helvetica", "B", 8)
+    # Column Widths: 75, 15, 30, 15, 25, 30 (Total = 190mm)
+    pdf.set_fill_color(225, 230, 238) # สีพื้นหลังฟ้า/เทาอ่อน
+    pdf.set_text_color(0, 0, 0)
+    if has_font: pdf.set_font("THSarabun", "B", 10)
+    else: pdf.set_font("helvetica", "B", 9)
     
     y_tbl_start = pdf.get_y()
-    pdf.cell(80, 8, "Payment Description", 1, 0, "C")
-    pdf.cell(15, 8, "No. Contr.", 1, 0, "C")
-    pdf.cell(25, 8, "@ Unit Usd", 1, 0, "C")
-    pdf.cell(25, 8, "@ Unit Thb.", 1, 0, "C")
-    pdf.cell(20, 8, "Exc. Usd.", 1, 0, "C")
-    pdf.cell(25, 8, "Amount Thb.", 1, 1, "C")
+    pdf.cell(75, 8, "Payment Description", 1, 0, "C", fill=True)
+    pdf.cell(15, 8, "QTY", 1, 0, "C", fill=True)
+    pdf.cell(30, 8, "UNIT PRICE", 1, 0, "C", fill=True)
+    pdf.cell(15, 8, "CUR.", 1, 0, "C", fill=True)
+    pdf.cell(25, 8, "EXCHANGE", 1, 0, "C", fill=True)
+    pdf.cell(30, 8, "AMOUNT (THB)", 1, 1, "C", fill=True)
 
     # Row 1: B/L Number
     if has_font: pdf.set_font("THSarabun", "B", 10)
     else: pdf.set_font("helvetica", "B", 9)
     pdf.set_text_color(200, 0, 0)
-    pdf.cell(80, 7, f"B/L NUMBER :  {bl_no}", "L", 0, "L")
+    pdf.cell(75, 7, f"B/L NUMBER :  {bl_no}", "L", 0, "L")
+    pdf.cell(15, 7, "", 0, 0)
+    pdf.cell(30, 7, "", 0, 0)
     pdf.cell(15, 7, "", 0, 0)
     pdf.cell(25, 7, "", 0, 0)
-    pdf.cell(25, 7, "", 0, 0)
-    pdf.cell(20, 7, "", 0, 0)
-    pdf.cell(25, 7, "", "R", 1)
+    pdf.cell(30, 7, "", "R", 1)
 
     pdf.set_text_color(0, 0, 0)
     if has_font: pdf.set_font("THSarabun", "", 10)
@@ -677,48 +680,46 @@ def create_commercial_invoice_pdf(inv_row, inv_dtl, bk_row, bank_info, cust_addr
         total_amount_thb += amt
 
         qty_str = f"{qty:.0f}" if qty.is_integer() else f"{qty:,.2f}"
+        unit_price_str = f"{unit_price:,.2f}"
+        cur_str = currency.upper()
         
-        if currency.upper() == "USD":
-            usd_unit = f"{unit_price:,.2f}"
-            thb_unit = "-"
-            exc_str = f"{exc_rate:,.2f}"
+        if cur_str == "THB" or exc_rate == 1.0:
+            exc_str = "-"
         else:
-            usd_unit = "-"
-            thb_unit = f"{unit_price:,.2f}"
-            exc_str = ""
+            exc_str = f"{exc_rate:,.2f}"
 
         amt_str = f"{amt:,.2f}"
 
-        pdf.cell(80, 6.5, desc, "L", 0, "L")
+        pdf.cell(75, 6.5, desc, "L", 0, "L")
         pdf.cell(15, 6.5, qty_str, 0, 0, "C")
-        pdf.cell(25, 6.5, usd_unit, 0, 0, "R")
-        pdf.cell(25, 6.5, thb_unit, 0, 0, "R")
-        pdf.cell(20, 6.5, exc_str, 0, 0, "C")
-        pdf.cell(25, 6.5, amt_str, "R", 1, "R")
+        pdf.cell(30, 6.5, unit_price_str, 0, 0, "R")
+        pdf.cell(15, 6.5, cur_str, 0, 0, "C")
+        pdf.cell(25, 6.5, exc_str, 0, 0, "C")
+        pdf.cell(30, 6.5, amt_str, "R", 1, "R")
 
     min_rows = 10
     remaining = min_rows - len(service_items) - 1
     for _ in range(max(0, remaining)):
-        pdf.cell(80, 6.5, "", "L", 0, "L")
+        pdf.cell(75, 6.5, "", "L", 0, "L")
+        pdf.cell(15, 6.5, "", 0, 0)
+        pdf.cell(30, 6.5, "", 0, 0)
         pdf.cell(15, 6.5, "", 0, 0)
         pdf.cell(25, 6.5, "", 0, 0)
-        pdf.cell(25, 6.5, "", 0, 0)
-        pdf.cell(20, 6.5, "", 0, 0)
-        pdf.cell(25, 6.5, "-", "R", 1, "C")
+        pdf.cell(30, 6.5, "-", "R", 1, "C")
 
     total_amount_thb = round_half_up(total_amount_thb, 2)
     
     y_tbl_end = pdf.get_y()
     pdf.rect(10, y_tbl_start, 190, y_tbl_end - y_tbl_start)
     
-    for x_pos in [90, 105, 130, 155, 175]:
+    for x_pos in [85, 100, 130, 145, 170]:
         pdf.line(x_pos, y_tbl_start, x_pos, y_tbl_end)
 
-    pdf.rect(175, y_tbl_end, 25, 8)
+    pdf.rect(170, y_tbl_end, 30, 8)
     if has_font: pdf.set_font("THSarabun", "B", 10)
     else: pdf.set_font("helvetica", "B", 9)
-    pdf.cell(165, 8, "", 0, 0)
-    pdf.cell(25, 8, f"{total_amount_thb:,.2f}", 1, 1, "R")
+    pdf.cell(160, 8, "", 0, 0)
+    pdf.cell(30, 8, f"{total_amount_thb:,.2f}", 1, 1, "R")
     pdf.ln(6)
 
     # --- THAI BAHT TEXT BANNER ---
@@ -738,9 +739,20 @@ def create_commercial_invoice_pdf(inv_row, inv_dtl, bk_row, bank_info, cust_addr
     else: pdf.set_font("helvetica", "B", 10)
     
     pdf.set_x(10)
-    pdf.cell(0, 6, "กรุณาส่งจ่าย :   นาย บุญชู อัตตานนท์", ln=True)
-    pdf.cell(0, 6, "ธนาคารกสิกรไทย สาขาเมกา บางนา 2", ln=True)
-    pdf.cell(0, 6, "ประเภทออมทรัพย์ เลขที่บัญชี 0 4 3 - 1 - 4 1 3 2 0 - 5", ln=True)
+    if isinstance(bank_acc_dict, dict) and bank_acc_dict.get('Account Owner'):
+        owner = safe_str(bank_acc_dict.get('Account Owner'))
+        bank = safe_str(bank_acc_dict.get('Bank Name'))
+        branch = safe_str(bank_acc_dict.get('Branch'))
+        acc_type = safe_str(bank_acc_dict.get('Account Type'))
+        acc_no = safe_str(bank_acc_dict.get('Account Number'))
+        
+        pdf.cell(0, 6, f"กรุณาสั่งจ่าย :   {owner}", ln=True)
+        pdf.cell(0, 6, f"{bank} {branch}", ln=True)
+        pdf.cell(0, 6, f"ประเภท{acc_type} เลขที่บัญชี {acc_no}", ln=True)
+    else:
+        pdf.cell(0, 6, "กรุณาสั่งจ่าย :   นาย บุญชู อัตตานนท์", ln=True)
+        pdf.cell(0, 6, "ธนาคารกสิกรไทย สาขาเมกา บางนา 2", ln=True)
+        pdf.cell(0, 6, "ประเภทออมทรัพย์ เลขที่บัญชี 0 4 3 - 1 - 4 1 3 2 0 - 5", ln=True)
 
     return bytes(pdf.output())
 
@@ -1172,7 +1184,8 @@ if page == "⚙️ ฐานข้อมูลหลัก (Master Data)":
         "📉 อัตราภาษีหัก ณ ที่จ่าย (Tax %)",
         "📊 อัตราภาษีมูลค่าเพิ่ม (VAT %)",
         "💱 สกุลเงิน (Currency)",
-        "👤 ผู้ส่งออก (Sender)"
+        "👤 ผู้ส่งออก (Sender)",
+        "🏦 บัญชีธนาคาร (Bank Account)"
     ]
     
     sel_master = st.selectbox("📌 เลือกหมวดหมู่ข้อมูลหลักที่ต้องการจัดการ:", master_options)
@@ -1236,7 +1249,8 @@ if page == "⚙️ ฐานข้อมูลหลัก (Master Data)":
             "📉 อัตราภาษีหัก ณ ที่จ่าย (Tax %)": 5,
             "📊 อัตราภาษีมูลค่าเพิ่ม (VAT %)": 6,
             "💱 สกุลเงิน (Currency)": 7,
-            "👤 ผู้ส่งออก (Sender)": 8
+            "👤 ผู้ส่งออก (Sender)": 8,
+            "🏦 บัญชีธนาคาร (Bank Account)": 9
         }
         m_idx = idx_map.get(sel_master, 0)
         m = master_configs[m_idx]
@@ -2566,6 +2580,29 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                     ],
                     key=f"inv_tpl_choice_{sel_inv_id}"
                 )
+
+                # ตัวเลือกบัญชีธนาคารสำหรับพิมพ์
+                df_bank_acc = get_data_from_sheet('Bank_Account')
+                bank_acc_opts = []
+                bank_acc_map = {}
+                if not df_bank_acc.empty and 'Account Owner' in df_bank_acc.columns:
+                    for _, b_row in df_bank_acc.iterrows():
+                        owner_name = safe_str(b_row.get('Account Owner'))
+                        bank_name = safe_str(b_row.get('Bank Name'))
+                        acc_no = safe_str(b_row.get('Account Number'))
+                        if owner_name or bank_name:
+                            b_label = f"{owner_name} - {bank_name} ({acc_no})"
+                            bank_acc_opts.append(b_label)
+                            bank_acc_map[b_label] = b_row.to_dict()
+
+                sel_bank_acc_dict = None
+                if bank_acc_opts:
+                    sel_bank_label = st.selectbox(
+                        "🏦 เลือกบัญชีธนาคารสำหรับแสดงบนเอกสาร PDF (Bank Account):",
+                        bank_acc_opts,
+                        key=f"sel_bank_acc_print_{sel_inv_id}"
+                    )
+                    sel_bank_acc_dict = bank_acc_map.get(sel_bank_label)
                 
                 # เตรียมปุ่ม PDF & บันทึกการแก้ไข
                 col_save_1, col_save_2 = st.columns(2)
@@ -2631,7 +2668,7 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                     ])
                     
                     if "Commercial Invoice" in inv_template_choice:
-                        pdf_data = create_commercial_invoice_pdf(preview_row, preview_details, bk_row, bank_info, cust_address, get_data_from_sheet('Booking_Detail'), cust_tax)
+                        pdf_data = create_commercial_invoice_pdf(preview_row, preview_details, bk_row, bank_info, cust_address, get_data_from_sheet('Booking_Detail'), cust_tax, bank_acc_dict=sel_bank_acc_dict)
                     else:
                         pdf_data = create_invoice_pdf(preview_row, preview_details, bk_row, bank_info, cust_address, get_data_from_sheet('Booking_Detail'), cust_tax)
 
