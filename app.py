@@ -546,6 +546,204 @@ def create_invoice_pdf(inv_row, inv_dtl, bk_row, bank_info, cust_address, df_bd,
 
     return bytes(pdf.output())
 
+def create_commercial_invoice_pdf(inv_row, inv_dtl, bk_row, bank_info, cust_address, df_bd, cust_tax):
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    try:
+        pdf.add_font("THSarabun", style="", fname="THSarabunNew.ttf", uni=True)
+        pdf.add_font("THSarabun", style="B", fname="THSarabunNew Bold.ttf", uni=True)
+        has_font = True
+    except:
+        has_font = False
+
+    original_set_font = pdf.set_font
+    def safe_set_font(family, style="", size=0, *args, **kwargs):
+        if family == "THSarabun" and not has_font:
+            family = "helvetica"
+        if family.lower() == "arial":
+            family = "helvetica"
+        return original_set_font(family, style, size, *args, **kwargs)
+    pdf.set_font = safe_set_font
+
+    pdf.add_page()
+    
+    # --- HEADER ---
+    if has_font: pdf.set_font("THSarabun", "B", 18)
+    else: pdf.set_font("helvetica", "B", 16)
+    pdf.cell(0, 10, "ใบแจ้งหนี้ / INVOICE", 0, 1, "C")
+    pdf.ln(2)
+
+    cust_name = safe_str(inv_row.get('Customer Name'))
+    inv_id = safe_str(inv_row.get('Invoice ID'))
+    inv_date = format_doc_date(inv_row.get('Invoice Date'))
+
+    if bk_row is not None:
+        feeder = safe_str(bk_row.get('Feeder/Voyage'))
+        vessel = safe_str(bk_row.get('Vessel/Voyage'))
+        pol = safe_str(bk_row.get('Port Loading'))
+        pod = safe_str(bk_row.get('Port Discharge'))
+        etd = format_doc_date(bk_row.get('ETD'))
+        eta = format_doc_date(bk_row.get('ETA'))
+        bl_no = safe_str(bk_row.get('B/L Number'))
+        bk_id = safe_str(bk_row.get('Booking ID'))
+    else:
+        feeder, vessel, pol, pod, etd, eta, bl_no, bk_id = "-", "-", "-", "-", "-", "-", "-", ""
+
+    volume_list = []
+    if not df_bd.empty and 'Booking ID' in df_bd.columns and bk_id:
+        containers = df_bd[df_bd['Booking ID'].astype(str) == bk_id]
+        for _, c_row in containers.iterrows():
+            qty = int(safe_float(c_row.get('Number'), 0))
+            ctype = safe_str(c_row.get('Container Type'))
+            if qty > 0 and ctype:
+                volume_list.append(f"{qty} X {ctype}")
+    vol_summary = " + ".join(volume_list) if volume_list else "-"
+
+    # Grid metadata
+    def draw_grid_line(label1, val1, label2, val2):
+        y = pdf.get_y()
+        if has_font: pdf.set_font("THSarabun", "B", 10)
+        else: pdf.set_font("helvetica", "B", 9)
+        pdf.text(10, y + 4, label1)
+        w1 = pdf.get_string_width(label1)
+        if has_font: pdf.set_font("THSarabun", "", 10)
+        else: pdf.set_font("helvetica", "", 9)
+        pdf.text(10 + w1 + 1, y + 4, str(val1))
+
+        if label2:
+            if has_font: pdf.set_font("THSarabun", "B", 10)
+            else: pdf.set_font("helvetica", "B", 9)
+            pdf.text(115, y + 4, label2)
+            w2 = pdf.get_string_width(label2)
+            if has_font: pdf.set_font("THSarabun", "", 10)
+            else: pdf.set_font("helvetica", "", 9)
+            pdf.text(115 + w2 + 1, y + 4, str(val2))
+        pdf.set_y(y + 6)
+
+    draw_grid_line("Shipper Name :", cust_name, "Invoice no. :", f"{inv_id}    Date : {inv_date}")
+    draw_grid_line("Feeder/Voy :", feeder, "Vessel/Voy :", vessel)
+    draw_grid_line("Port of Loading :", pol, "Port of Discharge :", pod)
+    draw_grid_line("Shipped on Board :", etd, "Arrival Date :", eta)
+    draw_grid_line("Vol :", vol_summary, "", "")
+    pdf.ln(3)
+
+    # --- TABLE ---
+    # Column Widths: 80, 15, 25, 25, 20, 25 (Total = 190mm)
+    if has_font: pdf.set_font("THSarabun", "B", 9)
+    else: pdf.set_font("helvetica", "B", 8)
+    
+    y_tbl_start = pdf.get_y()
+    pdf.cell(80, 8, "Payment Description", 1, 0, "C")
+    pdf.cell(15, 8, "No. Contr.", 1, 0, "C")
+    pdf.cell(25, 8, "@ Unit Usd", 1, 0, "C")
+    pdf.cell(25, 8, "@ Unit Thb.", 1, 0, "C")
+    pdf.cell(20, 8, "Exc. Usd.", 1, 0, "C")
+    pdf.cell(25, 8, "Amount Thb.", 1, 1, "C")
+
+    # Row 1: B/L Number
+    if has_font: pdf.set_font("THSarabun", "B", 10)
+    else: pdf.set_font("helvetica", "B", 9)
+    pdf.set_text_color(200, 0, 0)
+    pdf.cell(80, 7, f"B/L NUMBER :  {bl_no}", "L", 0, "L")
+    pdf.cell(15, 7, "", 0, 0)
+    pdf.cell(25, 7, "", 0, 0)
+    pdf.cell(25, 7, "", 0, 0)
+    pdf.cell(20, 7, "", 0, 0)
+    pdf.cell(25, 7, "", "R", 1)
+
+    pdf.set_text_color(0, 0, 0)
+    if has_font: pdf.set_font("THSarabun", "", 10)
+    else: pdf.set_font("helvetica", "", 9)
+
+    service_items = []
+    for _, item in inv_dtl.iterrows():
+        if safe_float(item.get('Unit Price'), 0) <= 0 and safe_float(item.get('Amount'), 0) <= 0:
+            continue
+        service_items.append(item.to_dict())
+
+    service_items.sort(key=get_item_sort_key)
+
+    total_amount_thb = 0.0
+
+    for item in service_items:
+        desc = safe_str(item.get('Charge Item'))
+        qty = safe_float(item.get('Quantity'), 0)
+        unit_price = safe_float(item.get('Unit Price'), 0)
+        currency = safe_str(item.get('Currency')) or "THB"
+        exc_rate = safe_float(item.get('Exchange Rate'), 1.0)
+        amt = safe_float(item.get('Amount'), 0)
+        if amt <= 0 and qty > 0 and unit_price > 0:
+            amt = qty * unit_price * exc_rate
+
+        total_amount_thb += amt
+
+        qty_str = f"{qty:.0f}" if qty.is_integer() else f"{qty:,.2f}"
+        
+        if currency.upper() == "USD":
+            usd_unit = f"{unit_price:,.2f}"
+            thb_unit = "-"
+            exc_str = f"{exc_rate:,.2f}"
+        else:
+            usd_unit = "-"
+            thb_unit = f"{unit_price:,.2f}"
+            exc_str = ""
+
+        amt_str = f"{amt:,.2f}"
+
+        pdf.cell(80, 6.5, desc, "L", 0, "L")
+        pdf.cell(15, 6.5, qty_str, 0, 0, "C")
+        pdf.cell(25, 6.5, usd_unit, 0, 0, "R")
+        pdf.cell(25, 6.5, thb_unit, 0, 0, "R")
+        pdf.cell(20, 6.5, exc_str, 0, 0, "C")
+        pdf.cell(25, 6.5, amt_str, "R", 1, "R")
+
+    min_rows = 10
+    remaining = min_rows - len(service_items) - 1
+    for _ in range(max(0, remaining)):
+        pdf.cell(80, 6.5, "", "L", 0, "L")
+        pdf.cell(15, 6.5, "", 0, 0)
+        pdf.cell(25, 6.5, "", 0, 0)
+        pdf.cell(25, 6.5, "", 0, 0)
+        pdf.cell(20, 6.5, "", 0, 0)
+        pdf.cell(25, 6.5, "-", "R", 1, "C")
+
+    total_amount_thb = round_half_up(total_amount_thb, 2)
+    
+    y_tbl_end = pdf.get_y()
+    pdf.rect(10, y_tbl_start, 190, y_tbl_end - y_tbl_start)
+    
+    for x_pos in [90, 105, 130, 155, 175]:
+        pdf.line(x_pos, y_tbl_start, x_pos, y_tbl_end)
+
+    pdf.rect(175, y_tbl_end, 25, 8)
+    if has_font: pdf.set_font("THSarabun", "B", 10)
+    else: pdf.set_font("helvetica", "B", 9)
+    pdf.cell(165, 8, "", 0, 0)
+    pdf.cell(25, 8, f"{total_amount_thb:,.2f}", 1, 1, "R")
+    pdf.ln(6)
+
+    # --- THAI BAHT TEXT BANNER ---
+    thai_text = num_to_thai_baht(total_amount_thb)
+    banner_str = f"-- {thai_text} --"
+    
+    pdf.set_fill_color(225, 230, 238)
+    if has_font: pdf.set_font("THSarabun", "B", 12)
+    else: pdf.set_font("helvetica", "B", 10)
+    pdf.set_text_color(0, 0, 128)
+    pdf.cell(0, 10, banner_str, 0, 1, "C", fill=True)
+    pdf.ln(8)
+
+    # --- PAYMENT INSTRUCTIONS ---
+    pdf.set_text_color(0, 0, 0)
+    if has_font: pdf.set_font("THSarabun", "B", 11)
+    else: pdf.set_font("helvetica", "B", 10)
+    
+    pdf.set_x(10)
+    pdf.cell(0, 6, "กรุณาส่งจ่าย :   นาย บุญชู อัตตานนท์", ln=True)
+    pdf.cell(0, 6, "ธนาคารกสิกรไทย สาขาเมกา บางนา 2", ln=True)
+    pdf.cell(0, 6, "ประเภทออมทรัพย์ เลขที่บัญชี 0 4 3 - 1 - 4 1 3 2 0 - 5", ln=True)
+
+    return bytes(pdf.output())
+
 def num_to_thai_baht(number):
     """ฟังก์ชันแปลงตัวเลขเป็นคำอ่านภาษาไทย"""
     if number == 0: return "ศูนย์บาทถ้วน"
@@ -2360,6 +2558,15 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                 
                 st.markdown("---")
                 
+                inv_template_choice = st.radio(
+                    "📄 เลือกรูปแบบใบแจ้งหนี้สำหรับพิมพ์ PDF (Invoice Template):",
+                    [
+                        "📌 รูปแบบมาตรฐาน (Official Format - VAT 7% / WHT 3%)",
+                        "📄 รูปแบบ Commercial Invoice (ไม่มี VAT/WHT - แยกเรท USD/THB)"
+                    ],
+                    key=f"inv_tpl_choice_{sel_inv_id}"
+                )
+                
                 # เตรียมปุ่ม PDF & บันทึกการแก้ไข
                 col_save_1, col_save_2 = st.columns(2)
                 with col_save_1:
@@ -2423,7 +2630,11 @@ elif page == "🧾 ใบแจ้งหนี้ (Invoice)":
                         } for i, item in enumerate(invoice_items_edit)
                     ])
                     
-                    pdf_data = create_invoice_pdf(preview_row, preview_details, bk_row, bank_info, cust_address, get_data_from_sheet('Booking_Detail'), cust_tax)
+                    if "Commercial Invoice" in inv_template_choice:
+                        pdf_data = create_commercial_invoice_pdf(preview_row, preview_details, bk_row, bank_info, cust_address, get_data_from_sheet('Booking_Detail'), cust_tax)
+                    else:
+                        pdf_data = create_invoice_pdf(preview_row, preview_details, bk_row, bank_info, cust_address, get_data_from_sheet('Booking_Detail'), cust_tax)
+
                     st.download_button(
                         label="📄 พิมพ์ใบแจ้งหนี้ (PDF)",
                         data=pdf_data,
